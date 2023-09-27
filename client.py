@@ -22,12 +22,7 @@ def run():
         print(response)
         if (response == "WINNER WINNER CHICKEN DINNER"):
             hasSolved = True
-        elif (response == "MISS"):
-            print("MISS")
-        elif(response == "HIT!"):
-            print("HIT")
-        else:
-            print("What happened lol")
+
 
 if __name__ == "__main__":
 

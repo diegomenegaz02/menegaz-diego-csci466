@@ -2,6 +2,11 @@ import socket
 import pickle
 import sys
 import time
+import csv
+import re
+
+
+# Function to replace words in a string
 
 class Packet():
     def __init__(self, sequence_number, checksum, ack_or_nak, length, message):
@@ -47,27 +52,98 @@ class Packet():
     def get_sequence(self):
         return self.sequence_number
 
-def send_ACK(SN,checksum):
-    if(checksum == True):
-        ACK = Packet(SN,True,1,0,"")
-        data = pickle.dumps(ACK)
-    elif(checksum == False):
-        NACK = Packet(SN,True,0,0,"")
-        data = pickle.dumps(NACK)
-    return data;
+
+
+def split_string(input_string, n):
+    result = []
+    for i in range(0, len(input_string), n):
+        result.append(input_string[i:i + n])
+    return result
+def read_word_replacements(csv_file):
+    word_replacements = {}
+    with open(csv_file, 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            if len(row) == 2:
+                word_replacements[row[0]] = row[1]
+    return word_replacements
+def replace_words_with_csv(csv_file, input_string):
+    word_replacements = read_word_replacements(csv_file)
+    words = re.findall(r'\b\w+\b', input_string)  # Extract words from the input string
+    result_string = []
+
+    for word in words:
+        if word in word_replacements:
+            result_string.append(word_replacements[word])
+        else:
+            result_string.append(word)
+
+    # Reconstruct the string while preserving punctuation
+    result_string = re.sub(r'\b\w+\b', lambda m: result_string.pop(0), input_string)
+
+    return result_string
+
+
 def main():
     recieved_packets = []
+    packet_list = []
+
     port = 6000
     host = socket.gethostname()
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serverSocket.bind( (host,port))
     serverSocket.listen(1)
+    print("It is listening for connection")
+
     connection,addr= serverSocket.accept()
+
 #idea recieve packet - send ACK - get another so each loop
     while True:
         data = connection.recv(1024)
         ob = pickle.loads(data)
-        ack = send_ACK(ob.get_sequence(),ob.get_checksum)
+        length = ob.get_length()
+        if ob.get_checksum() == False:
+            NACK = Packet(ob.get_sequence(), True, 0, 0, "NACK")
+        else:
+            ACK = Packet(ob.get_sequence(), True, 1, 0, "ACK")
         recieved_packets.append(ob)
-        serverSocket.send(ack)
+        sData = pickle.dumps(ACK)
+        connection.send(sData)
         time.sleep(1)
+        if "." in ob.get_message():
+            break
+
+
+#First Connection Above
+#contacinate a string via the packets
+    decrypted_message = ""
+    for p in recieved_packets:
+        decrypted_message = decrypted_message + p.get_message()
+#String Reconstructed
+    length = recieved_packets[0].get_length()
+    pirated_message = replace_words_with_csv("pirate.csv",decrypted_message)
+    packetlen = len(pirated_message)
+    print(pirated_message)
+    messagesplit = split_string(pirated_message, length)
+    if (packetlen % length != 0):
+        packetlen = packetlen + length;  # allows for another packet to be made to cover extra
+    packetlen = packetlen / length
+    packetlen = int(packetlen)
+    for i in range(packetlen):
+        ob = Packet(i + 1, True, 2, length, "")
+        packet_list.append(ob)
+    for j in range(len(packet_list)):
+        packet_list[j].set_message(messagesplit[j])
+    for each_packet in packet_list:
+        data = pickle.dumps(each_packet)
+        connection.send(data)
+        time.sleep(1)
+        Sdata = connection.recv(1024)
+        ob = pickle.loads(Sdata)
+        ACKm = ob.get_message()
+        #print("Sending", each_packet.get_message())
+        #print(ACKm)
+#Waiting for Server to Grab Final repeated Message
+if __name__ == '__main__':
+    main()
+

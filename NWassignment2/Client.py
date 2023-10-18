@@ -39,38 +39,65 @@ def split_string(input_string, n):
 def main():
 
     length =4
-    messageCopy = "Hey what's up man"
+    messageCopy = "you are an idiot."
+    packetlen = len(messageCopy)
     packet_list = []
     messagesplit = split_string(messageCopy,length)
-    packetlen = len(messageCopy)
-    if(messageCopy%length !=0):
-        packetlen + length; #allows for another packet to be made to cover extra
-    for i in range(packetlen/length):
-        ob = Packet(i+1,"")
+
+    if(packetlen%length !=0):
+        packetlen = packetlen + length; #allows for another packet to be made to cover extra
+    packetlen = packetlen/length
+    packetlen = int(packetlen)
+    for i in range(packetlen):
+        ob = Packet(i+1,True,2,length,"")
         packet_list.append(ob)
     for j in range(len(packet_list)):
-        packet_list[i].set_message(messagesplit[i])
-        packet_list[i].set_length(length)
-        packet_list[i].set_checksum(True)
-        packet_list[i].set_ack_or_nak(2);
+        packet_list[j].set_message(messagesplit[j])
+        print(packet_list[j].get_message())
     port = 6000
     host = socket.gethostname()
     clientSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     clientSocket.connect( (host,port) )
-    connection, addr = clientSocket.accept()
+
+
+    for each_packet in packet_list:
+        data = pickle.dumps(each_packet)
+        clientSocket.send(data)
+        time.sleep(1)
+        Sdata = clientSocket.recv(1024)
+        ob = pickle.loads(Sdata)
+        ACKm = ob.get_message()
+        #print("Sending", each_packet.get_message())
+        #print(ACKm)
+
+#Server Now is going to Send Message Back Meaning we need to Send Acks.
+
+    recieved_packets = []
     while True:
-        for each_packet in packet_list:
-            data = pickle.dumps(each_packet)
-            clientSocket.send(data)
-            time.sleep(1)
-            sData = connection.recv(1024)
-            ack = pickle.loads(sData)
-            if ack.get_ack_or_nak == 0:
-                data = pickle.dumps(each_packet)
-                clientSocket.send(data) #sending again if nak
-                time.sleep(1)
+        data = clientSocket.recv(1024)
+        ob = pickle.loads(data)
+        length = ob.get_length()
+        if ob.get_checksum() == False:
+            NACK = Packet(ob.get_sequence(), True, 0, 0, "NACK")
+        else:
+            ACK = Packet(ob.get_sequence(), True, 1, 0, "ACK")
+        recieved_packets.append(ob)
+        sData = pickle.dumps(ACK)
+        clientSocket.send(sData)
+        time.sleep(1)
+        if "." in ob.get_message():
+            break
+    decrypted_message = ""
+    for p in recieved_packets:
+        decrypted_message = decrypted_message + p.get_message()
+    print(decrypted_message)
 
 
 
-#Okay PacketList set up to be sent.
 
+if __name__ == '__main__':
+    main()
+
+
+#TODO: Create the random chance for NAK,
+#TODO: Got acks working/got message->server->pirated->Client

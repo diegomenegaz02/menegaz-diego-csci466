@@ -67,6 +67,7 @@ def read_word_replacements(csv_file):
             if len(row) == 2:
                 word_replacements[row[0]] = row[1]
     return word_replacements
+#This csv replacement ironically was a leet code problem :D So citing #1 Solution that I had already used.
 def replace_words_with_csv(csv_file, input_string):
     word_replacements = read_word_replacements(csv_file)
     words = re.findall(r'\b\w+\b', input_string)  # Extract words from the input string
@@ -82,13 +83,20 @@ def replace_words_with_csv(csv_file, input_string):
     result_string = re.sub(r'\b\w+\b', lambda m: result_string.pop(0), input_string)
 
     return result_string
-
+def corruption(percent,array):
+    if 0 <= percent <= 1:
+        array_length = len(array)
+        array_index = int(percent * (array_length-2))
+        if array_index < array_length -1:
+            array[array_index].set_checksum(False)
 
 def main():
+    length = int(sys.argv[2])
+    packet_corruption = float(sys.argv[3])
     recieved_packets = []
     packet_list = []
 
-    port = 6000
+    port = int(sys.argv[1])
     host = socket.gethostname()
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serverSocket.bind( (host,port))
@@ -104,12 +112,15 @@ def main():
         length = ob.get_length()
         if ob.get_checksum() == False:
             NACK = Packet(ob.get_sequence(), True, 0, 0, "NACK")
+            sData = pickle.dumps(NACK)
+            connection.send(sData)
+            time.sleep(1)
         else:
             ACK = Packet(ob.get_sequence(), True, 1, 0, "ACK")
-        recieved_packets.append(ob)
-        sData = pickle.dumps(ACK)
-        connection.send(sData)
-        time.sleep(1)
+            recieved_packets.append(ob)
+            sData = pickle.dumps(ACK)
+            connection.send(sData)
+            time.sleep(1)
         if "." in ob.get_message():
             break
 
@@ -120,13 +131,13 @@ def main():
     for p in recieved_packets:
         decrypted_message = decrypted_message + p.get_message()
 #String Reconstructed
-    length = recieved_packets[0].get_length()
+
     pirated_message = replace_words_with_csv("pirate.csv",decrypted_message)
     packetlen = len(pirated_message)
     print(pirated_message)
-    messagesplit = split_string(pirated_message, length)
+    messagesplit = split_string(pirated_message,length)
     if (packetlen % length != 0):
-        packetlen = packetlen + length;  # allows for another packet to be made to cover extra
+        packetlen = packetlen + length  # allows for another packet to be made to cover extra
     packetlen = packetlen / length
     packetlen = int(packetlen)
     for i in range(packetlen):
@@ -134,13 +145,23 @@ def main():
         packet_list.append(ob)
     for j in range(len(packet_list)):
         packet_list[j].set_message(messagesplit[j])
+
+
+    corruption(packet_corruption,packet_list)
     for each_packet in packet_list:
         data = pickle.dumps(each_packet)
         connection.send(data)
         time.sleep(1)
         Sdata = connection.recv(1024)
         ob = pickle.loads(Sdata)
-        ACKm = ob.get_message()
+        ACKm = ob.get_ack_or_nak()
+        print(ob.get_message())
+        if(ACKm == 0):
+            each_packet.set_checksum(True)
+            data = pickle.dumps(each_packet)
+            connection.send(data)
+            time.sleep(1)
+
         #print("Sending", each_packet.get_message())
         #print(ACKm)
 #Waiting for Server to Grab Final repeated Message

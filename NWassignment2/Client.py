@@ -31,14 +31,21 @@ class Packet():
         return self.checksum
     def get_sequence(self):
         return self.sequence_number
+
 def split_string(input_string, n):
     result = []
     for i in range(0, len(input_string), n):
         result.append(input_string[i:i + n])
     return result
+def corruption(percent,array):
+    if 0 <= percent <= 1:
+        array_length = len(array)
+        array_index = int(percent * (array_length-2))
+        if array_index < array_length -1:
+            array[array_index].set_checksum(False)
 def main():
-
-    length =4
+    packet_corruption = float(sys.argv[3]) #will be ARGS
+    length = int(sys.argv[2])
     messageCopy = "you are an idiot."
     packetlen = len(messageCopy)
     packet_list = []
@@ -53,20 +60,29 @@ def main():
         packet_list.append(ob)
     for j in range(len(packet_list)):
         packet_list[j].set_message(messagesplit[j])
-        print(packet_list[j].get_message())
-    port = 6000
+    corruption(packet_corruption,packet_list)
+    #Corruption Here
+    port = int(sys.argv[1])
     host = socket.gethostname()
     clientSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     clientSocket.connect( (host,port) )
-
 
     for each_packet in packet_list:
         data = pickle.dumps(each_packet)
         clientSocket.send(data)
         time.sleep(1)
+        #If not corrupted
         Sdata = clientSocket.recv(1024)
         ob = pickle.loads(Sdata)
-        ACKm = ob.get_message()
+        ACKm = ob.get_ack_or_nak()
+        print(ob.get_message())
+
+        if(ACKm == 0):#sending packet uncorrupted
+            each_packet.set_checksum(True)
+            data = pickle.dumps(each_packet)
+            clientSocket.send(data)
+            time.sleep(1)
+
         #print("Sending", each_packet.get_message())
         #print(ACKm)
 
@@ -79,12 +95,15 @@ def main():
         length = ob.get_length()
         if ob.get_checksum() == False:
             NACK = Packet(ob.get_sequence(), True, 0, 0, "NACK")
+            sData = pickle.dumps(NACK)
+            clientSocket.send(sData)
+            time.sleep(1)
         else:
             ACK = Packet(ob.get_sequence(), True, 1, 0, "ACK")
-        recieved_packets.append(ob)
-        sData = pickle.dumps(ACK)
-        clientSocket.send(sData)
-        time.sleep(1)
+            recieved_packets.append(ob)
+            sData = pickle.dumps(ACK)
+            clientSocket.send(sData)
+            time.sleep(1)
         if "." in ob.get_message():
             break
     decrypted_message = ""

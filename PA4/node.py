@@ -18,17 +18,17 @@ def rec_token(port):
 def maybe_add_to_buffer(num, probability):
     # pbv
     if random.random() < probability:
-        num = num + 1
+        x = num + 1
+
 
 def join_ring(send_port, rec_port, num_packets_to_send, is_head, node_number):
-
     if is_head:
         # Base Case & has to start it
         while True:
             print(f"Node {node_number}: I have the token! Sending packet out to the internet...")
             maybe_add_to_buffer(num_packets_to_send, 0.25)
             send_token(send_port, "TOKEN")
-            num_packets_to_send = num_packets_to_send - 1
+
             token = rec_token(rec_port)
             if len(token) != 0:
                 if num_packets_to_send > 0:
@@ -46,8 +46,10 @@ def join_ring(send_port, rec_port, num_packets_to_send, is_head, node_number):
     else:
         # probably could have removed this and made it a seperate function but that kept breaking
         while True:
+            print(f"Node {node_number}: waiting to do shit")
             token = rec_token(rec_port)
             if len(token) != 0:
+
                 if num_packets_to_send > 0:
                     # I have packets to send
                     print(f"Node {node_number}: Sending packet out to the internet...")
